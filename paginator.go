@@ -36,6 +36,7 @@ type Paginator struct {
 	nextAfterCursor  string
 	nextBeforeCursor string
 	keys             []string
+	dbKeys			 map[string]string
 	limit            int
 	order            order
 }
@@ -59,6 +60,12 @@ func (p *Paginator) SetBeforeCursor(cursor string) {
 // SetKeys sets paging keys
 func (p *Paginator) SetKeys(keys ...string) {
 	p.keys = append(p.keys, keys...)
+}
+
+// setDBKeys sets the keys for the database in case of different naming and joins
+func (p *Paginator) SetDBKeys(dbKeys map[string]string) {
+	// a map showing the db key for each key
+	p.dbKeys = dbKeys
 }
 
 // SetLimit sets paging limit
@@ -153,9 +160,14 @@ func (p *Paginator) getCursorQueryTemplate(operator string) string {
 	composite := ""
 
 	for index, key := range p.keys {
-		snakeKey := strcase.ToSnake(key)
-		queries[index] = fmt.Sprintf("%s%s %s ?", composite, snakeKey, operator)
-		composite = fmt.Sprintf("%s%s = ? AND ", composite, snakeKey)
+		var queryKey string
+		if dbKey, exist := p.dbKeys[key]; exist {
+			queryKey = dbKey
+		} else {
+			queryKey = strcase.ToSnake(key)
+		}
+		queries[index] = fmt.Sprintf("%s%s %s ?", composite, queryKey, operator)
+		composite = fmt.Sprintf("%s%s = ? AND ", composite, queryKey)
 	}
 	return strings.Join(queries, " OR ")
 }
@@ -192,7 +204,13 @@ func (p *Paginator) getOrder() string {
 	orders := make([]string, len(p.keys))
 
 	for index, key := range p.keys {
-		orders[index] = fmt.Sprintf("%s %s", strcase.ToSnake(key), order)
+		var orderKey string
+		if dbKey, exist := p.dbKeys[key]; exist {
+			orderKey = dbKey
+		} else {
+			orderKey = strcase.ToSnake(key)
+		}
+		orders[index] = fmt.Sprintf("%s %s", orderKey, order)
 	}
 	return strings.Join(orders, ", ")
 }
